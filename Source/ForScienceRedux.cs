@@ -82,28 +82,29 @@ namespace ForScience {
         void RunScience() {
             if (GetExperimentList() == null) {
                 Debug.Log("[ForScience!] There are no experiments.");
-            } else {
-                foreach (ModuleScienceExperiment currentExperiment in GetExperimentList()) {
-                    Debug.Log("[ForScience!] Checking experiment: " + currentScienceSubject(currentExperiment.experiment).id);
+                return;
+            }
 
-                    if (ActiveContainer() && ActiveContainer().HasData(newScienceData(currentExperiment))) {
-                        Debug.Log("[ForScience!] Skipping: We already have that data onboard.");
-                    }
-                    else if (!surfaceSamplesUnlocked() && currentExperiment.experiment.id == "surfaceSample") {
-                        Debug.Log("[ForScience!] Skipping: Surface Samples are not unlocked.");
-                    }
-                    else if (!currentExperiment.rerunnable && !IsScientistOnBoard()) {
-                        Debug.Log("[ForScience!] Skipping: Experiment is not repeatable.");
-                    }
-                    else if (!currentExperiment.experiment.IsAvailableWhile(currentSituation(), currentBody())) {
-                        Debug.Log("[ForScience!] Skipping: Experiment is not available for this situation/atmosphere.");
-                    }
-                    else if (currentScienceValue(currentExperiment) < 0.1) {
-                        Debug.Log("[ForScience!] Skipping: No more science is available: ");
-                    } else {
-                        Debug.Log("[ForScience!] Running experiment: " + currentScienceSubject(currentExperiment.experiment).id);
-                        DeployExperiment(currentExperiment);
-                    }
+            var experimentlist = GetExperimentList();
+            for (int i = 0; i < experimentlist.Count; i++) {
+                var currentExperiment = experimentlist[i];
+                Debug.Log("[ForScience!] Checking experiment: " + currentScienceSubject(currentExperiment.experiment).id);
+
+                if (currentExperiment.GetData().Length > 0) {
+                    Debug.Log("[ForScience!] Skipping: Experiemnt already has data.");
+                } else if (ActiveContainer() && ActiveContainer().HasData(newScienceData(currentExperiment))) {
+                    Debug.Log("[ForScience!] Skipping: We already have that data onboard.");
+                } else if (!surfaceSamplesUnlocked() && currentExperiment.experiment.id == "surfaceSample") {
+                    Debug.Log("[ForScience!] Skipping: Surface Samples are not unlocked.");
+                } else if (!currentExperiment.rerunnable && !IsScientistOnBoard()) {
+                    Debug.Log("[ForScience!] Skipping: Experiment is not repeatable.");
+                } else if (!currentExperiment.experiment.IsAvailableWhile(currentSituation(), currentBody())) {
+                    Debug.Log("[ForScience!] Skipping: Experiment is not available for this situation/atmosphere.");
+                } else if (currentScienceValue(currentExperiment) < 0.1) {
+                    Debug.Log("[ForScience!] Skipping: No more science is available: ");
+                } else {
+                    Debug.Log("[ForScience!] Running experiment: " + currentScienceSubject(currentExperiment.experiment).id);
+                    DeployExperiment(currentExperiment);
                 }
             }
         }
@@ -229,11 +230,12 @@ namespace ForScience {
             FSAppButton.SetTexture(getIconTexture(autoTransfer));
         }
 
-        bool IsScientistOnBoard() // check if there is a scientist onboard so we can rerun things like goo or scijrs
-        {
-            foreach (ProtoCrewMember kerbal in vessel.GetVesselCrew())
-            {
-                if (kerbal.experienceTrait.Title == "Scientist") return true;
+        // check if there is a scientist onboard so we can rerun things like goo or scijrs
+        bool IsScientistOnBoard() {
+            var crewlist = vessel.GetVesselCrew();
+            for (int i = 0; i < crewlist.Count; i++) {
+                if ( crewlist[i].experienceTrait.Title == "Scienctist" )
+                    return true;
             }
             return false;
         }
