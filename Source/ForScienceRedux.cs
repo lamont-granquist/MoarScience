@@ -1,6 +1,5 @@
 ﻿using KSP.UI.Screens;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 namespace ForScience {
@@ -73,10 +72,10 @@ namespace ForScience {
 
                 Debug.Log("[ForScience!] Transfering science to container.");
 
-                ActiveContainer().StoreData(GetExperimentList().Cast<IScienceDataContainer>().ToList(), true); // this is what actually moves the data to the active container
-                var containerstotransfer = ContainerList(); // a temporary list of our containers
+                ActiveContainer().StoreData(GetExperimentListAsInterface(), true); // this is what actually moves the data to the active container
+                var containerstotransfer = ContainerListAsInterface(); // a temporary list of our containers
                 containerstotransfer.Remove(ActiveContainer()); // we need to remove the container we storing the data in because that would be wierd and buggy
-                ActiveContainer().StoreData(containerstotransfer.Cast<IScienceDataContainer>().ToList(), true); // now we store all data from other containers
+                ActiveContainer().StoreData(containerstotransfer, true); // now we store all data from other containers
             }
         }
 
@@ -172,19 +171,41 @@ namespace ForScience {
 
         // set the container to gather all science data inside, usualy this is the root command pod of the oldest vessel
         ModuleScienceContainer ActiveContainer() {
-            return ContainerList().FirstOrDefault();
+            try {
+                return ContainerList()[0];
+            }
+            catch (System.ArgumentOutOfRangeException) {
+                return null;
+            }
         }
 
-        private bool HasContainer { get { return ContainerList().Count() > 1; } }
+        private bool HasContainer { get { return ContainerList().Count > 1; } }
 
-        List<ModuleScienceExperiment> GetExperimentList() // a list of all experiments
-        {
+        List<ModuleScienceExperiment> GetExperimentList() {
             return vessel.FindPartModulesImplementing<ModuleScienceExperiment>();
+        }
+
+        List<IScienceDataContainer> GetExperimentListAsInterface() {
+            List<IScienceDataContainer> iexperiments = new List<IScienceDataContainer>();
+            var experiments = GetExperimentList();
+            for (int i = 0; i < experiments.Count; i++) {
+                iexperiments.Add((IScienceDataContainer)experiments[i]);
+            }
+            return iexperiments;
         }
 
         List<ModuleScienceContainer> ContainerList() // a list of all science containers
         {
             return vessel.FindPartModulesImplementing<ModuleScienceContainer>(); // list of all experiments onboard
+        }
+
+        List<IScienceDataContainer> ContainerListAsInterface() {
+            List<IScienceDataContainer> icontainers = new List<IScienceDataContainer>();
+            var containers = ContainerList();
+            for (int i = 0; i < containers.Count; i++) {
+                icontainers.Add((IScienceDataContainer)containers[i]);
+            }
+            return icontainers;
         }
 
         bool StatesHaveChanged() // Track our vessel state, it is used for thread control to know when to fire off new experiments since there is no event for this
