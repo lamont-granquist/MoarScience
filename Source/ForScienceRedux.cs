@@ -16,7 +16,6 @@ namespace ForScience {
 
         //thread control
         bool autoTransfer = true;
-        System.Diagnostics.Stopwatch stopwatch = new System.Diagnostics.Stopwatch();
 
         // to do list
         //
@@ -30,7 +29,8 @@ namespace ForScience {
 
         void OnDestroy() {
             GameEvents.onGUIApplicationLauncherReady.Remove(setupAppButton);
-            if (FSAppButton != null) ApplicationLauncher.Instance.RemoveModApplication(FSAppButton);
+            if (FSAppButton != null)
+                ApplicationLauncher.Instance.RemoveModApplication(FSAppButton);
         }
 
         void setupAppButton() {
@@ -55,7 +55,6 @@ namespace ForScience {
                     setupAppButton();
                 if (autoTransfer) {
                     if (StatesHaveChanged()) {
-                        // if we are in a new state, we will check and run experiments
                         RunScience();
                     }
                     if (HasContainer) {
@@ -94,13 +93,13 @@ namespace ForScience {
                     Debug.Log("[ForScience!] Skipping: Experiemnt already has data.");
                 } else if (ActiveContainer() && ActiveContainer().HasData(newScienceData(currentExperiment))) {
                     Debug.Log("[ForScience!] Skipping: We already have that data onboard.");
-                } else if (!surfaceSamplesUnlocked() && currentExperiment.experiment.id == "surfaceSample") {
-                    Debug.Log("[ForScience!] Skipping: Surface Samples are not unlocked.");
+                } else if (!currentExperiment.experiment.IsUnlocked()) {
+                    Debug.Log("[ForScience!] Skipping: Experiment is not unlocked.");
                 } else if (!currentExperiment.rerunnable && !IsScientistOnBoard()) {
                     Debug.Log("[ForScience!] Skipping: Experiment is not repeatable.");
-                } else if (!currentExperiment.experiment.IsAvailableWhile(currentSituation(), currentBody())) {
+                } else if (!currentExperiment.experiment.IsAvailableWhile(currentSituation(), body)) {
                     Debug.Log("[ForScience!] Skipping: Experiment is not available for this situation/atmosphere.");
-                } else if (currentScienceValue(currentExperiment) < 0.1) {
+                } else if (currentScienceValue(currentExperiment.experiment) < 0.1) {
                     Debug.Log("[ForScience!] Skipping: No more science is available: ");
                 } else {
                     Debug.Log("[ForScience!] Running experiment: " + currentScienceSubject(currentExperiment.experiment).id);
@@ -123,11 +122,8 @@ namespace ForScience {
                 && GameVariables.Instance.UnlockedFuelTransfer(ScenarioUpgradeableFacilities.GetFacilityLevel(SpaceCenterFacility.ResearchAndDevelopment));
         }
 
-        float currentScienceValue(ModuleScienceExperiment currentExperiment) // the ammount of science an experiment should return
-        {
-            return ResearchAndDevelopment.GetScienceValue(
-                                    currentExperiment.experiment.baseValue * currentExperiment.experiment.dataScale,
-                                    currentScienceSubject(currentExperiment.experiment));
+        float currentScienceValue(ScienceExperiment experiment) {
+            return ResearchAndDevelopment.GetScienceValue(experiment.baseValue * experiment.dataScale, currentScienceSubject(experiment)) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
         }
 
         ScienceData newScienceData(ModuleScienceExperiment currentExperiment) // construct our own science data for an experiment
@@ -141,33 +137,30 @@ namespace ForScience {
                        );
         }
 
-        private Vessel vessel { get { return  FlightGlobals.ActiveVessel; } }
+        private Vessel vessel { get { return FlightGlobals.ActiveVessel; } }
 
-        CelestialBody currentBody() {
-            return vessel.mainBody;
-        }
+        private CelestialBody body { get { return vessel.mainBody; } }
 
         ExperimentSituations currentSituation() {
             return ScienceUtil.GetExperimentSituation(vessel);
         }
 
-        string currentBiome() // some crazy nonsense to get the actual biome string
-        {
-            if (vessel != null)
-                if (vessel.mainBody.BiomeMap != null)
-                    return !string.IsNullOrEmpty(vessel.landedAt)
-                                    ? Vessel.GetLandedAtString(vessel.landedAt)
-                                    : ScienceUtil.GetExperimentBiome(vessel.mainBody,
-                                                vessel.latitude, vessel.longitude);
-
-            return string.Empty;
+        private string BiomeString(ScienceExperiment experiment = null) {
+            if (experiment != null && !experiment.BiomeIsRelevantWhile(ScienceUtil.GetExperimentSituation(vessel)))
+                return string.Empty;
+            if (vessel == null || body == null)
+                return string.Empty;
+            if (body.BiomeMap == null)
+                return string.Empty;
+            var v = vessel.EVALadderVessel;
+            if (!string.IsNullOrEmpty(v.landedAt))
+                return Vessel.GetLandedAtString(v.landedAt);
+            else
+                return ScienceUtil.GetExperimentBiome(body, v.latitude, v.longitude);
         }
 
-        ScienceSubject currentScienceSubject(ScienceExperiment experiment)
-        {
-            string fixBiome = string.Empty; // some biomes don't have 4th string, so we just put an empty in to compare strings later
-            if (experiment.BiomeIsRelevantWhile(currentSituation())) fixBiome = currentBiome();// for those that do, we add it to the string
-            return ResearchAndDevelopment.GetExperimentSubject(experiment, currentSituation(), currentBody(), fixBiome);//ikr!, we pretty much did all the work already, jeez
+        ScienceSubject currentScienceSubject(ScienceExperiment experiment) {
+            return ResearchAndDevelopment.GetExperimentSubject(experiment, ScienceUtil.GetExperimentSituation(vessel), body, BiomeString(experiment));
         }
 
         // set the container to gather all science data inside, usualy this is the root command pod of the oldest vessel
@@ -182,10 +175,12 @@ namespace ForScience {
 
         private bool HasContainer { get { return ContainerList().Count > 1; } }
 
+        // all ModuleScienceExperiments
         List<ModuleScienceExperiment> GetExperimentList() {
             return vessel.FindPartModulesImplementing<ModuleScienceExperiment>();
         }
 
+        // all ModuleScienceExperiments as IScienceDataContainers
         List<IScienceDataContainer> GetExperimentListAsInterface() {
             List<IScienceDataContainer> iexperiments = new List<IScienceDataContainer>();
             var experiments = GetExperimentList();
@@ -195,11 +190,13 @@ namespace ForScience {
             return iexperiments;
         }
 
-        List<ModuleScienceContainer> ContainerList() // a list of all science containers
+        // all ModuleScienceContainers
+        List<ModuleScienceContainer> ContainerList()
         {
-            return vessel.FindPartModulesImplementing<ModuleScienceContainer>(); // list of all experiments onboard
+            return vessel.FindPartModulesImplementing<ModuleScienceContainer>();
         }
 
+        // all ModuleScienceContainers as IScienceDataContainers
         List<IScienceDataContainer> ContainerListAsInterface() {
             List<IScienceDataContainer> icontainers = new List<IScienceDataContainer>();
             var containers = ContainerList();
@@ -209,16 +206,12 @@ namespace ForScience {
             return icontainers;
         }
 
-        bool StatesHaveChanged() // Track our vessel state, it is used for thread control to know when to fire off new experiments since there is no event for this
-        {
-            if (vessel != stateVessel | currentSituation() != stateSituation | currentBody() != stateBody | currentBiome() != stateBiome)
-            {
+        bool StatesHaveChanged() {
+            if (vessel != stateVessel | currentSituation() != stateSituation | body != stateBody | BiomeString() != stateBiome) {
                 stateVessel = vessel;
-                stateBody = currentBody();
+                stateBody = body;
                 stateSituation = currentSituation();
-                stateBiome = currentBiome();
-                stopwatch.Reset();
-                stopwatch.Start();
+                stateBiome = BiomeString();
                 return true;
             }
             else return false;
