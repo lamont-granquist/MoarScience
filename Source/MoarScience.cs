@@ -2,9 +2,9 @@ using KSP.UI.Screens;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ForScience {
+namespace MoarScience {
     [KSPAddon(KSPAddon.Startup.Flight, false)]
-    class ForScience : MonoBehaviour {
+    class MoarScience : MonoBehaviour {
         //GUI
         ApplicationLauncherButton FSAppButton;
 
@@ -39,7 +39,7 @@ namespace ForScience {
         }
 
         void OnScienceReceived(float scienceAmount, ScienceSubject subject, ProtoVessel vessel, bool recoveryData) {
-            Debug.Log("[ForScienceRedux!] removing from transmitting science tracker: " + subject.title);
+            Debug.Log("[MoarScience!] removing from transmitting science tracker: " + subject.title);
             TransmittingScience.Remove(subject.title);
         }
 
@@ -81,7 +81,7 @@ namespace ForScience {
         void TransmitScience() {
             // FIXME? creates a ton of logspam
             if (transmitter == null) {
-                Debug.Log("[ForScience!] No transmitter, not transmitting any science.");
+                Debug.Log("[MoarScience!] No transmitter, not transmitting any science.");
                 return;
             }
 
@@ -101,11 +101,11 @@ namespace ForScience {
 
         void TransmitData(ScienceData data, IScienceDataContainer container) {
             if ( TransmittingScience.Contains(data.title) ) {
-                Debug.Log("[ForScience!] transmitting queue already has: " + data.title);
+                Debug.Log("[MoarScience!] transmitting queue already has: " + data.title);
                 return;
             }
             if ( data.baseTransmitValue < 0.40 ) {
-                Debug.Log("[ForScience!] transmit value is less than 40%: " + data.title);
+                Debug.Log("[MoarScience!] transmit value is less than 40%: " + data.title);
                 return;
             }
             TransmittingScience.Add(data.title);
@@ -118,7 +118,7 @@ namespace ForScience {
             if (ActiveContainer().GetActiveVesselDataCount() != ActiveContainer().GetScienceCount()) // only actually transfer if there is data to move
             {
 
-                Debug.Log("[ForScience!] Transfering science to container.");
+                Debug.Log("[MoarScience!] Transfering science to container.");
 
                 ActiveContainer().StoreData(GetExperimentListAsInterface(), true); // this is what actually moves the data to the active container
                 var containerstotransfer = ContainerListAsInterface(); // a temporary list of our containers
@@ -130,29 +130,29 @@ namespace ForScience {
         // collect science
         void RunScience() {
             if (GetExperimentList() == null) {
-                Debug.Log("[ForScience!] There are no experiments.");
+                Debug.Log("[MoarScience!] There are no experiments.");
                 return;
             }
 
             var experimentlist = GetExperimentList();
             for (int i = 0; i < experimentlist.Count; i++) {
                 var currentExperiment = experimentlist[i];
-                Debug.Log("[ForScience!] Checking experiment: " + currentScienceSubject(currentExperiment.experiment).id);
+                Debug.Log("[MoarScience!] Checking experiment: " + currentScienceSubject(currentExperiment.experiment).id);
 
                 if (currentExperiment.GetData().Length > 0) {
-                    Debug.Log("[ForScience!] Skipping: Experiemnt already has data.");
+                    Debug.Log("[MoarScience!] Skipping: Experiemnt already has data.");
                 } else if (ActiveContainer() && ActiveContainer().HasData(newScienceData(currentExperiment))) {
-                    Debug.Log("[ForScience!] Skipping: We already have that data onboard.");
+                    Debug.Log("[MoarScience!] Skipping: We already have that data onboard.");
                 } else if (!currentExperiment.experiment.IsUnlocked()) {
-                    Debug.Log("[ForScience!] Skipping: Experiment is not unlocked.");
+                    Debug.Log("[MoarScience!] Skipping: Experiment is not unlocked.");
                 } else if (!currentExperiment.rerunnable && !IsScientistOnBoard()) {
-                    Debug.Log("[ForScience!] Skipping: Experiment is not repeatable.");
+                    Debug.Log("[MoarScience!] Skipping: Experiment is not repeatable.");
                 } else if (!currentExperiment.experiment.IsAvailableWhile(currentSituation(), body)) {
-                    Debug.Log("[ForScience!] Skipping: Experiment is not available for this situation/atmosphere.");
+                    Debug.Log("[MoarScience!] Skipping: Experiment is not available for this situation/atmosphere.");
                 } else if (currentScienceValue(currentExperiment.experiment) < 0.1) {
-                    Debug.Log("[ForScience!] Skipping: No more science is available: ");
+                    Debug.Log("[MoarScience!] Skipping: No more science is available: ");
                 } else {
-                    Debug.Log("[ForScience!] Running experiment: " + currentScienceSubject(currentExperiment.experiment).id);
+                    Debug.Log("[MoarScience!] Running experiment: " + currentScienceSubject(currentExperiment.experiment).id);
                     DeployExperiment(currentExperiment);
                 }
             }
@@ -299,9 +299,9 @@ namespace ForScience {
 
         Texture2D getIconTexture(bool b) {
             if (b)
-                return GameDatabase.Instance.GetTexture("ForScienceRedux/Icons/FS_active", false);
+                return GameDatabase.Instance.GetTexture("MoarScience/Icons/FS_active", false);
             else
-                return GameDatabase.Instance.GetTexture("ForScienceRedux/Icons/FS_inactive", false);
+                return GameDatabase.Instance.GetTexture("MoarScience/Icons/FS_inactive", false);
         }
     }
 }

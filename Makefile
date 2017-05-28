@@ -27,18 +27,18 @@ info:
 	@echo "KSP Data: ${KSPDIR}"
 	@echo "Managed:  ${MANAGED}"
 
-build: GameData/ForScienceRedux/Plugins/ForScienceRedux.dll
+build: GameData/MoarScience/Plugins/MoarScience.dll
 
-GameData/ForScienceRedux/Plugins/ForScienceRedux.dll: $(SOURCEFILES)
+GameData/MoarScience/Plugins/MoarScience.dll: $(SOURCEFILES)
 	${MCS} -t:library -lib:"${MANAGED}" -debug \
 		-r:Assembly-CSharp,Assembly-CSharp-firstpass,UnityEngine,UnityEngine.UI \
 		-out:$@ ${SOURCEFILES}
 
 install: build
-	cp -r GameData/ForScienceRedux "${KSPDIR}"/GameData
+	cp -r GameData/MoarScience "${KSPDIR}"/GameData
 
 uninstall:
-	rm -rf "${KSPDIR}"/GameData/ForScienceRedux
+	rm -rf "${KSPDIR}"/GameData/MoarScience
 
 clean:
-	rm -f ./GameData/ForScienceRedux/Plugins/ForScienceRedux.dll*
+	rm -f ./GameData/MoarScience/Plugins/MoarScience.dll*

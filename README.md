@@ -1,4 +1,4 @@
-ForScience
+MoarScience
 ==========
 
 A science enhancement plugin for Kerbal Space Program. By WaveFunctionP.
