@@ -17,6 +17,8 @@ namespace ForScience {
         //thread control
         bool autoTransfer = true;
 
+        HashSet<string> TransmittingScience = new HashSet<string>();
+
         // to do list
         //
         // integrate science lab
@@ -25,12 +27,20 @@ namespace ForScience {
 
         void Awake() {
             GameEvents.onGUIApplicationLauncherReady.Add(setupAppButton);
+            GameEvents.OnScienceRecieved.Add(OnScienceReceived);
+            TransmittingScience.Clear();
         }
 
         void OnDestroy() {
             GameEvents.onGUIApplicationLauncherReady.Remove(setupAppButton);
             if (FSAppButton != null)
                 ApplicationLauncher.Instance.RemoveModApplication(FSAppButton);
+            GameEvents.OnScienceRecieved.Remove(OnScienceReceived);
+        }
+
+        void OnScienceReceived(float scienceAmount, ScienceSubject subject, ProtoVessel vessel, bool recoveryData) {
+            Debug.Log("[ForScienceRedux!] removing from transmitting science tracker: " + subject.title);
+            TransmittingScience.Remove(subject.title);
         }
 
         void setupAppButton() {
@@ -50,22 +60,61 @@ namespace ForScience {
 
         // running in physics update so that the vessel is always in a valid state to check for science.
         void FixedUpdate() {
+            // FIXME: should use vessel.IsControllable to (optionally?) lock out when vessel is not controllable
             if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER || HighLogic.CurrentGame.Mode == Game.Modes.SCIENCE_SANDBOX) {
                 if (FSAppButton == null)
                     setupAppButton();
                 if (autoTransfer) {
+                    // FIXME? we may want to runscience+transferscience in a loop until nothing changes?
                     if (StatesHaveChanged()) {
                         RunScience();
                     }
                     if (HasContainer) {
                         TransferScience();
                     }
+                    TransmitScience();
                 }
             }
         }
 
-        void TransferScience() // automaticlly find, transer and consolidate science data on the vessel
-        {
+        // transmit science
+        void TransmitScience() {
+            // FIXME? creates a ton of logspam
+            if (transmitter == null) {
+                Debug.Log("[ForScience!] No transmitter, not transmitting any science.");
+                return;
+            }
+
+            var sciencelist = ScienceModsAsInterface();
+            for (int i = 0; i < sciencelist.Count; i++) {
+                var container = sciencelist[i];
+                ScienceData[] datalist = container.GetData();
+                for (int j = 0; j < datalist.Length; j++) {
+                    var data = datalist[j];
+                    TransmitData(data, container);
+                }
+            }
+        }
+
+        private IScienceDataTransmitter transmitter { get { return ScienceUtil.GetBestTransmitter(vessel); } }
+
+
+        void TransmitData(ScienceData data, IScienceDataContainer container) {
+            if ( TransmittingScience.Contains(data.title) ) {
+                Debug.Log("[ForScience!] transmitting queue already has: " + data.title);
+                return;
+            }
+            if ( data.baseTransmitValue < 0.40 ) {
+                Debug.Log("[ForScience!] transmit value is less than 40%: " + data.title);
+                return;
+            }
+            TransmittingScience.Add(data.title);
+            transmitter.TransmitData(new List<ScienceData> { data });
+            container.DumpData(data);
+        }
+
+        // move science around
+        void TransferScience() {
             if (ActiveContainer().GetActiveVesselDataCount() != ActiveContainer().GetScienceCount()) // only actually transfer if there is data to move
             {
 
@@ -78,6 +127,7 @@ namespace ForScience {
             }
         }
 
+        // collect science
         void RunScience() {
             if (GetExperimentList() == null) {
                 Debug.Log("[ForScience!] There are no experiments.");
@@ -204,6 +254,20 @@ namespace ForScience {
                 icontainers.Add((IScienceDataContainer)containers[i]);
             }
             return icontainers;
+        }
+
+        // every IScienceDataContainer (containers and experiments)
+        List<IScienceDataContainer> ScienceModsAsInterface() {
+            List<IScienceDataContainer> iscience = new List<IScienceDataContainer>();
+            var containers = ContainerList();
+            for (int i = 0; i < containers.Count; i++) {
+                iscience.Add((IScienceDataContainer)containers[i]);
+            }
+            var experiments = GetExperimentList();
+            for (int i = 0; i < experiments.Count; i++) {
+                iscience.Add((IScienceDataContainer)experiments[i]);
+            }
+            return iscience;
         }
 
         bool StatesHaveChanged() {
