@@ -17,7 +17,36 @@ namespace MoarScience {
         //thread control
         bool autoTransfer = true;
 
-        HashSet<string> TransmittingScience = new HashSet<string>();
+        Dictionary<string, int> TransmittingScience = new Dictionary<string, int>();
+        Dictionary<string, int> ContainingScience = new Dictionary<string, int>();
+
+        void AddSubjectIDToDict(Dictionary<string, int> dict, string id) {
+            int count;
+            dict.TryGetValue(id, out count);
+            dict[id] = ++count;
+        }
+
+        void RemoveSubjectIDFromDict(Dictionary<string, int> dict, string id) {
+            if ( dict.ContainsKey(id) ) {
+                int newcount = dict[id] - 1;
+                if (newcount > 0) {
+                    dict[id] = newcount;
+                } else {
+                    dict.Remove(id);
+                }
+            }
+        }
+
+        int SubjectIDCountFromDicts(string id) {
+            int count = 0;
+            if ( TransmittingScience.ContainsKey(id) ) {
+                count += TransmittingScience[id];
+            }
+            if ( ContainingScience.ContainsKey(id) ) {
+                count += ContainingScience[id];
+            }
+            return count;
+        }
 
         // to do list
         //
@@ -39,8 +68,8 @@ namespace MoarScience {
         }
 
         void OnScienceReceived(float scienceAmount, ScienceSubject subject, ProtoVessel vessel, bool recoveryData) {
-            Debug.Log("[MoarScience!] removing from transmitting science tracker: " + subject.title);
-            TransmittingScience.Remove(subject.title);
+            Debug.Log("[MoarScience!] removing from transmitting science tracker: " + subject.id);
+            RemoveSubjectIDFromDict(TransmittingScience, subject.id);
         }
 
         void setupAppButton() {
@@ -66,15 +95,28 @@ namespace MoarScience {
                 if (FSAppButton == null)
                     setupAppButton();
                 if (autoTransfer) {
+                    ScanContainers();
                     if (StatesHaveChanged()) {
                         RunScience();
                     }
                     if (HasContainer) {
                         TransferScience();
-                    } else {
-                        Debug.Log("[Moar Science!] No container to move science to.");
                     }
                     TransmitScience();
+                }
+            }
+        }
+
+        void ScanContainers() {
+            ContainingScience.Clear();
+
+            var sciencelist = ScienceModsAsInterface();
+            for (int i = 0; i < sciencelist.Count; i++) {
+                var container = sciencelist[i];
+                ScienceData[] datalist = container.GetData();
+                for (int j = 0; j < datalist.Length; j++) {
+                    var data = datalist[j];
+                    AddSubjectIDToDict(ContainingScience, data.subjectID);
                 }
             }
         }
@@ -100,15 +142,15 @@ namespace MoarScience {
         private IScienceDataTransmitter transmitter { get { return ScienceUtil.GetBestTransmitter(vessel); } }
 
         void TransmitData(ScienceData data, IScienceDataContainer container) {
-            if ( TransmittingScience.Contains(data.title) ) {
-                Debug.Log("[MoarScience!] transmitting queue already has: " + data.title);
+            if ( TransmittingScience.ContainsKey(data.subjectID) ) {
+                Debug.Log("[MoarScience!] transmitting queue already has: " + data.subjectID);
                 return;
             }
             if ( data.baseTransmitValue < 0.40 ) {
-                Debug.Log("[MoarScience!] transmit value is less than 40%: " + data.title);
+                Debug.Log("[MoarScience!] transmit value is less than 40%: " + data.subjectID);
                 return;
             }
-            TransmittingScience.Add(data.title);
+            AddSubjectIDToDict(TransmittingScience, data.subjectID);
             transmitter.TransmitData(new List<ScienceData> { data });
             container.DumpData(data);
         }
@@ -174,11 +216,12 @@ namespace MoarScience {
                     Debug.Log("[MoarScience!] Skipping: Experiment is not repeatable.");
                 } else if (!currentExperiment.experiment.IsAvailableWhile(currentSituation(), body)) {
                     Debug.Log("[MoarScience!] Skipping: Experiment is not available for this situation/atmosphere.");
-                } else if (currentScienceValue(currentExperiment.experiment) < 0.1) {
+                } else if (computedScienceValue(currentExperiment.experiment) < 0.1) {
                     Debug.Log("[MoarScience!] Skipping: No more science is available: ");
                 } else {
                     Debug.Log("[MoarScience!] Running experiment: " + currentScienceSubject(currentExperiment.experiment).id);
                     DeployExperiment(currentExperiment);
+                    AddSubjectIDToDict(ContainingScience, currentScienceSubject(currentExperiment.experiment).id);
                 }
             }
         }
@@ -197,8 +240,27 @@ namespace MoarScience {
                 && GameVariables.Instance.UnlockedFuelTransfer(ScenarioUpgradeableFacilities.GetFacilityLevel(SpaceCenterFacility.ResearchAndDevelopment));
         }
 
+        float computedScienceValue(ScienceExperiment experiment) {
+            var subject = currentScienceSubject(experiment);
+            var count = SubjectIDCountFromDicts(subject.id);
+            if (count == 1) {
+                Debug.Log("[MoarScience!] found a single dup for: " + subject.id);
+                return nextScienceValue(experiment);
+            }
+            if (count > 1) {
+                Debug.Log("[MoarScience!] found multiple dups for: " + subject.id);
+                return nextScienceValue(experiment) / Mathf.Pow(4f, count - 1);
+            }
+            Debug.Log("[MoarScience!] found no dups for: " + subject.id);
+            return currentScienceValue(experiment);
+        }
+
         float currentScienceValue(ScienceExperiment experiment) {
             return ResearchAndDevelopment.GetScienceValue(experiment.baseValue * experiment.dataScale, currentScienceSubject(experiment)) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
+        }
+
+        float nextScienceValue(ScienceExperiment experiment) {
+            return ResearchAndDevelopment.GetNextScienceValue(experiment.baseValue * experiment.dataScale, currentScienceSubject(experiment)) * HighLogic.CurrentGame.Parameters.Career.ScienceGainMultiplier;
         }
 
         ScienceData newScienceData(ModuleScienceExperiment currentExperiment) // construct our own science data for an experiment
