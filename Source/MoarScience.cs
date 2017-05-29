@@ -60,6 +60,17 @@ namespace MoarScience {
             TransmittingScience.Clear();
         }
 
+        CommNet.CommNetVessel commNet;
+
+        void Start() {
+            List<VesselModule> mods = vessel.vesselModules;
+            for(int i = 0; i < mods.Count; i++) {
+                if ( mods[i].GetType() == typeof(CommNet.CommNetVessel) ) {
+                    commNet = mods[i] as CommNet.CommNetVessel;
+                }
+            }
+        }
+
         void OnDestroy() {
             GameEvents.onGUIApplicationLauncherReady.Remove(setupAppButton);
             if (FSAppButton != null)
@@ -121,10 +132,12 @@ namespace MoarScience {
             }
         }
 
+        private bool IsConnectedHome { get { return commNet.IsConnectedHome ; } }
+
         // transmit science
         void TransmitScience() {
-            if (transmitter == null) {
-                Debug.Log("[MoarScience!] No transmitter, not transmitting any science.");
+            if ( !IsConnectedHome ) {
+                // Debug.Log("[MoarScience!] No transmitter, not transmitting any science.");
                 return;
             }
 
