@@ -66,7 +66,6 @@ namespace MoarScience {
                 if (FSAppButton == null)
                     setupAppButton();
                 if (autoTransfer) {
-                    // FIXME? we may want to runscience+transferscience in a loop until nothing changes?
                     if (StatesHaveChanged()) {
                         RunScience();
                     }
@@ -114,20 +113,43 @@ namespace MoarScience {
             container.DumpData(data);
         }
 
-        // FIXME: this should probably fire only on changes in vessel state and science callbacks
+        bool EmptyContainer(IScienceDataContainer container) {
+            return container.GetScienceCount() == 0;
+        }
+
+        bool ActiveContainerHasAllData(IScienceDataContainer container) {
+            ScienceData[] datalist = container.GetData();
+            for(int i = 0; i < datalist.Length; i++) {
+                if (!ActiveContainer().HasData(datalist[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         void TransferScience() {
             if (ActiveContainer().GetActiveVesselDataCount() == ActiveContainer().GetScienceCount()) {
                 // shortcut: the activecontainer already has all the science on the vessel
-                Debug.Log("[MoarScience!] Target container already has all vessel science.");
+                // Debug.Log("[MoarScience!] Target container already has all vessel science.");
                 return;
             }
 
-            // if we have dup experiments we will grind here
-            Debug.Log("[MoarScience!] Iterating through containers.");
+            // FIXME: if we have dup experiments we will grind here
+            // Debug.Log("[MoarScience!] Iterating through containers.");
 
             var scienceList = ScienceModsAsInterface();
+
+            // don't want to move science from the active container to the active container
             scienceList.Remove(ActiveContainer());
-            ActiveContainer().StoreData(scienceList, false);
+            // no science to move in empty containers
+            scienceList.RemoveAll(EmptyContainer);
+            // skip all science which is already in the container
+            scienceList.RemoveAll(ActiveContainerHasAllData);
+
+            if (scienceList.Count > 0) {
+                Debug.Log("[MoarScience!] Moving data that is not duplicated in the active container.");
+                ActiveContainer().StoreData(scienceList, false);
+            }
         }
 
         // collect science
