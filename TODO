@@ -1,4 +1,0 @@
-- doesn't take into account science on the ship when considering science available (duplicates when science value would be zero)
-- nasty polling loop with duplicated science
-- need to use callbacks for vessel configuration changes
-- menu with options
