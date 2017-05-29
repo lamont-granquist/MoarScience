@@ -59,6 +59,7 @@ namespace MoarScience {
         }
 
         // running in physics update so that the vessel is always in a valid state to check for science.
+        // FIXME: this seems like a hack?
         void FixedUpdate() {
             // FIXME: should use vessel.IsControllable to (optionally?) lock out when vessel is not controllable
             if (HighLogic.CurrentGame.Mode == Game.Modes.CAREER || HighLogic.CurrentGame.Mode == Game.Modes.SCIENCE_SANDBOX) {
@@ -71,6 +72,8 @@ namespace MoarScience {
                     }
                     if (HasContainer) {
                         TransferScience();
+                    } else {
+                        Debug.Log("[Moar Science!] No container to move science to.");
                     }
                     TransmitScience();
                 }
@@ -79,7 +82,6 @@ namespace MoarScience {
 
         // transmit science
         void TransmitScience() {
-            // FIXME? creates a ton of logspam
             if (transmitter == null) {
                 Debug.Log("[MoarScience!] No transmitter, not transmitting any science.");
                 return;
@@ -98,7 +100,6 @@ namespace MoarScience {
 
         private IScienceDataTransmitter transmitter { get { return ScienceUtil.GetBestTransmitter(vessel); } }
 
-
         void TransmitData(ScienceData data, IScienceDataContainer container) {
             if ( TransmittingScience.Contains(data.title) ) {
                 Debug.Log("[MoarScience!] transmitting queue already has: " + data.title);
@@ -113,18 +114,20 @@ namespace MoarScience {
             container.DumpData(data);
         }
 
-        // move science around
+        // FIXME: this should probably fire only on changes in vessel state and science callbacks
         void TransferScience() {
-            if (ActiveContainer().GetActiveVesselDataCount() != ActiveContainer().GetScienceCount()) // only actually transfer if there is data to move
-            {
-
-                Debug.Log("[MoarScience!] Transfering science to container.");
-
-                ActiveContainer().StoreData(GetExperimentListAsInterface(), true); // this is what actually moves the data to the active container
-                var containerstotransfer = ContainerListAsInterface(); // a temporary list of our containers
-                containerstotransfer.Remove(ActiveContainer()); // we need to remove the container we storing the data in because that would be wierd and buggy
-                ActiveContainer().StoreData(containerstotransfer, true); // now we store all data from other containers
+            if (ActiveContainer().GetActiveVesselDataCount() == ActiveContainer().GetScienceCount()) {
+                // shortcut: the activecontainer already has all the science on the vessel
+                Debug.Log("[MoarScience!] Target container already has all vessel science.");
+                return;
             }
+
+            // if we have dup experiments we will grind here
+            Debug.Log("[MoarScience!] Iterating through containers.");
+
+            var scienceList = ScienceModsAsInterface();
+            scienceList.Remove(ActiveContainer());
+            ActiveContainer().StoreData(scienceList, false);
         }
 
         // collect science
@@ -140,7 +143,7 @@ namespace MoarScience {
                 Debug.Log("[MoarScience!] Checking experiment: " + currentScienceSubject(currentExperiment.experiment).id);
 
                 if (currentExperiment.GetData().Length > 0) {
-                    Debug.Log("[MoarScience!] Skipping: Experiemnt already has data.");
+                    Debug.Log("[MoarScience!] Skipping: Experiment already has data.");
                 } else if (ActiveContainer() && ActiveContainer().HasData(newScienceData(currentExperiment))) {
                     Debug.Log("[MoarScience!] Skipping: We already have that data onboard.");
                 } else if (!currentExperiment.experiment.IsUnlocked()) {
@@ -215,15 +218,14 @@ namespace MoarScience {
 
         // set the container to gather all science data inside, usualy this is the root command pod of the oldest vessel
         ModuleScienceContainer ActiveContainer() {
-            try {
-                return ContainerList()[0];
-            }
-            catch (System.ArgumentOutOfRangeException) {
+            if ( ContainerList().Count == 0 ) {
                 return null;
+            } else {
+                return ContainerList()[0];
             }
         }
 
-        private bool HasContainer { get { return ContainerList().Count > 1; } }
+        private bool HasContainer { get { return ContainerList().Count > 0; } }
 
         // all ModuleScienceExperiments
         List<ModuleScienceExperiment> GetExperimentList() {
