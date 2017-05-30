@@ -48,27 +48,10 @@ namespace MoarScience {
             return count;
         }
 
-        // to do list
-        //
-        // integrate science lab
-        // allow a user specified container to hold data
-        // transmit data from probes automaticly
-
         void Awake() {
             GameEvents.onGUIApplicationLauncherReady.Add(setupAppButton);
             GameEvents.OnScienceRecieved.Add(OnScienceReceived);
             TransmittingScience.Clear();
-        }
-
-        CommNet.CommNetVessel commNet;
-
-        void Start() {
-            List<VesselModule> mods = vessel.vesselModules;
-            for(int i = 0; i < mods.Count; i++) {
-                if ( mods[i].GetType() == typeof(CommNet.CommNetVessel) ) {
-                    commNet = mods[i] as CommNet.CommNetVessel;
-                }
-            }
         }
 
         void OnDestroy() {
@@ -132,15 +115,8 @@ namespace MoarScience {
             }
         }
 
-        private bool IsConnectedHome { get { return commNet.IsConnectedHome ; } }
-
         // transmit science
         void TransmitScience() {
-            if ( !IsConnectedHome ) {
-                // Debug.Log("[MoarScience!] No transmitter, not transmitting any science.");
-                return;
-            }
-
             var sciencelist = ScienceModsAsInterface();
             for (int i = 0; i < sciencelist.Count; i++) {
                 var container = sciencelist[i];
@@ -160,7 +136,12 @@ namespace MoarScience {
                 return;
             }
             if ( data.baseTransmitValue < 0.40 ) {
-                Debug.Log("[MoarScience!] transmit value is less than 40%: " + data.subjectID);
+                // Debug.Log("[MoarScience!] transmit value is less than 40%: " + data.subjectID);
+                return;
+            }
+            // we check for a transmitter late because of logspam from remotetech
+            if (transmitter == null) {
+                Debug.Log("[MoarScience!] have science to transfer but no transmitter/connection");
                 return;
             }
             AddSubjectIDToDict(TransmittingScience, data.subjectID);
